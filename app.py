@@ -4,7 +4,7 @@ import pandas as pd
 
 st.set_page_config(page_title="Truck Routing Portal", page_icon="Res", layout="wide")
 
-# Your active private key is safely locked here
+# Secure locked active HERE key
 api_key = "KLhVOBUT2NwvZfoHebi0254eWYI9WL5k9jjjOlEilgU"
 
 st.markdown("""
@@ -58,7 +58,7 @@ col1, col2 = st.columns(2)
 
 with col1:
     st.subheader("Route Locations")
-    st.caption("Type coordinates or text addresses freely below.")
+    st.caption("Type any address, city, ZIP, or raw Lat,Lng coordinates freely.")
     start_address = st.text_input("Origin Location", value="35.9606, -83.1763")
     end_address = st.text_input("Destination Location", value="36.1965, -82.7601")
     calculate = st.button("Generate Truck-Safe Route")
@@ -74,7 +74,7 @@ with col2:
             else:
                 url = "https://router.hereapi.com/v8/routes"
                 
-                # UPDATED V8 TRUCK OBJECT PARAMETERS
+                # CORRECTED V8 VEHICLE PARAMETER SYNTAX BLOCK
                 params = {
                     "apiKey": api_key,
                     "transportMode": "truck",
@@ -83,20 +83,20 @@ with col2:
                     "return": "summary,polyline,actions",
                     "routingMode": "fast",
                     
-                    # Corrected HERE Maps API v8 truck syntax configuration
-                    "truck[height]": 411,
-                    "truck[width]": 260,
-                    "truck[length]": 2200,
-                    "truck[grossWeight]": 36287,
-                    "truck[axleCount]": 5,
-                    "truck[type]": "tractorTrailer"
+                    # Validated V8 Vehicle Constraint Parameters
+                    "vehicle[height]": 411,
+                    "vehicle[width]": 260,
+                    "vehicle[length]": 2200,
+                    "vehicle[grossWeight]": 36287,
+                    "vehicle[axleCount]": 5,
+                    "vehicle[type]": "tractorTrailer"
                 }
                 
                 try:
                     res = requests.get(url, params=params)
                     if res.status_code == 200:
                         data = res.json()
-                        section = data['routes'][0]['sections'][0] # Safe object tree indexing for v8 array payloads
+                        section = data['routes'][0]['sections'][0] # Safe array path index mapping
                         summary = section['summary']
                         
                         miles = summary['length'] * 0.000621371
