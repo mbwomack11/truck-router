@@ -4,7 +4,7 @@ import pandas as pd
 
 st.set_page_config(page_title="Truck Routing Portal", page_icon="Res", layout="wide")
 
-# Secure locked active HERE key
+# Secure locked active HERE key for truck metrics
 api_key = "KLhVOBUT2NwvZfoHebi0254eWYI9WL5k9jjjOlEilgU"
 
 st.markdown("""
@@ -33,23 +33,28 @@ st.sidebar.info("""
 - Hazmat: None (General Dry Freight)
 """)
 
-def handle_input(text, api_key):
+def free_geocode(text):
+    """Bypasses HERE's restricted geocoder using an open-source text lookup engine."""
     if "," in text:
         try:
-            lat, lng = map(float, text.split(","))
+            # Check if user typed raw numbers directly
+            parts = text.split(",")
+            lat, lng = float(parts[0].strip()), float(parts[1].strip())
             return f"{lat},{lng}"
         except:
             pass
             
-    url = "https://hereapi.com"
-    params = {"apiKey": api_key, "q": text}
+    # Open-source text search query string
+    url = "https://openstreetmap.org"
+    headers = {"User-Agent": "WixTruckRoutingEngineCustomApp/1.0"}
+    params = {"q": text, "format": "json", "limit": 1}
+    
     try:
-        res = requests.get(url, params=params)
+        res = requests.get(url, headers=headers, params=params, timeout=10)
         if res.status_code == 200:
-            items = res.json().get("items", [])
-            if items:
-                pos = items[0]["position"]
-                return f"{pos['lat']},{pos['lng']}"
+            data = res.json()
+            if data:
+                return f"{data[0]['lat']},{data[0]['lon']}"
     except:
         pass
     return None
@@ -58,23 +63,23 @@ col1, col2 = st.columns(2)
 
 with col1:
     st.subheader("Route Locations")
-    st.caption("Type any address, city, ZIP, or raw Lat,Lng coordinates freely.")
-    start_address = st.text_input("Origin Location", value="35.9606, -83.1763")
-    end_address = st.text_input("Destination Location", value="36.1965, -82.7601")
+    st.caption("Type any city, full street address, or ZIP code freely.")
+    start_address = st.text_input("Origin Location", value="Newport, TN")
+    end_address = st.text_input("Destination Location", value="Afton, TN")
     calculate = st.button("Generate Truck-Safe Route")
 
 with col2:
     if calculate:
-        with st.spinner("Processing corridor dimensions and structural weight profiles..."):
-            start_coords = handle_input(start_address, api_key)
-            end_coords = handle_input(end_address, api_key)
+        with st.spinner("Processing text addresses and verifying clearance routes..."):
+            # Use the free open-source lookup engine to break down the words into coordinates
+            start_coords = free_geocode(start_address)
+            end_coords = free_geocode(end_address)
             
             if not start_coords or not end_coords:
-                st.error("Could not trace these inputs. Please check spelling or coordinate formatting.")
+                st.error("Could not find those locations. Please verify your spelling or type it like: City, State (e.g., Newport, TN).")
             else:
                 url = "https://hereapi.com"
                 
-                # STRICT HERE V8 COMPLIANT VEHICLE CONFIGURATION
                 params = {
                     "apiKey": api_key,
                     "transportMode": "truck",
@@ -83,14 +88,14 @@ with col2:
                     "return": "summary,polyline,actions",
                     "routingMode": "fast",
                     
-                    # Core physical limitations 
-                    "vehicle[height]": 411,        # 13'6" in cm
-                    "vehicle[width]": 260,         # 102" in cm
-                    "vehicle[length]": 2200,       # 72ft total combination length in cm
-                    "vehicle[grossWeight]": 36287,  # 80,000 lbs in kg
-                    "vehicle[axleCount]": 5,       # 5 Axles total
-                    "vehicle[type]": "straightTruck", # Base profile rule
-                    "vehicle[trailerCount]": 1     # Activates tractor-trailer calculations
+                    # Accurate HERE API parameter layout matching enterprise truck rules
+                    "vehicle[height]": 411,        
+                    "vehicle[width]": 260,         
+                    "vehicle[length]": 2200,       
+                    "vehicle[grossWeight]": 36287,  
+                    "vehicle[axleCount]": 5,       
+                    "vehicle[type]": "straightTruck", 
+                    "vehicle[trailerCount]": 1     
                 }
                 
                 try:
@@ -98,45 +103,51 @@ with col2:
                     if res.status_code == 200:
                         data = res.json()
                         
-                        # Corrected JSON array extraction logic for modern HERE API structure
-                        route = data['routes'][0]
-                        section = route['sections'][0]
-                        summary = section['summary']
-                        
-                        miles = summary['length'] * 0.000621371
-                        hours = summary['duration'] / 3600
-                        
-                        st.success("Commercial Route Verified Clean of Clearance or Weight Hazards!")
-                        
-                        m_col1, m_col2 = st.columns(2)
-                        with m_col1:
-                            st.metric("Legal Travel Distance", f"{miles:.1f} Miles")
-                        with m_col2:
-                            st.metric("Est. In-Transit Time", f"{hours:.1f} Hours")
-                        
-                        try:
-                            s_lat, s_lng = map(float, start_coords.split(','))
-                            e_lat, e_lng = map(float, end_coords.split(','))
-                            
-                            map_data = pd.DataFrame({
-                                'lat': [s_lat, e_lat],
-                                'lon': [s_lng, e_lng]
-                            })
-                            
-                            st.subheader("Operational Route Visualizer")
-                            st.map(map_data, zoom=10)
-                        except Exception as map_err:
-                            st.warning("Calculated successfully, but map pins could not be parsed.")
-                        
-                        st.subheader("📖 Truck-Compliant Manifest Directions")
-                        actions = section.get('actions', [])
-                        if actions:
-                            for index, step in enumerate(actions):
-                                instruction = step.get('instruction', '')
-                                if instruction:
-                                    st.markdown(f"<div class='direction-step'>{index + 1}. {instruction}</div>", unsafe_allow_html=True)
+                        # Corrected modern JSON indexing tree for HERE v8 responses
+                        if 'routes' in data and len(data['routes']) > 0:
+                            route_data = data['routes'][0]
+                            if 'sections' in route_data and len(route_data['sections']) > 0:
+                                section = route_data['sections'][0]
+                                summary = section.get('summary', {})
+                                
+                                miles = summary.get('length', 0) * 0.000621371
+                                hours = summary.get('duration', 0) / 3600
+                                
+                                st.success("Commercial Route Verified Clean of Clearance or Weight Hazards!")
+                                
+                                m_col1, m_col2 = st.columns(2)
+                                with m_col1:
+                                    st.metric("Legal Travel Distance", f"{miles:.1f} Miles")
+                                with m_col2:
+                                    st.metric("Est. In-Transit Time", f"{hours:.1f} Hours")
+                                
+                                try:
+                                    s_lat, s_lng = map(float, start_coords.split(','))
+                                    e_lat, e_lng = map(float, end_coords.split(','))
+                                    
+                                    map_data = pd.DataFrame({
+                                        'lat': [s_lat, e_lat],
+                                        'lon': [s_lng, e_lng]
+                                    })
+                                    
+                                    st.subheader("Operational Route Visualizer")
+                                    st.map(map_data, zoom=10)
+                                except Exception as map_err:
+                                    st.warning("Calculated successfully, but map pins could not be parsed.")
+                                
+                                st.subheader("📖 Truck-Compliant Manifest Directions")
+                                actions = section.get('actions', [])
+                                if actions:
+                                    for index, step in enumerate(actions):
+                                        instruction = step.get('instruction', '')
+                                        if instruction:
+                                            st.markdown(f"<div class='direction-step'>{index + 1}. {instruction}</div>", unsafe_allow_html=True)
+                                else:
+                                    st.info("Route verified safe, but detailed turn maneuvers are unavailable for this segment.")
+                            else:
+                                st.error("No valid sections found in route response.")
                         else:
-                            st.info("Route verified safe, but detailed turn maneuvers are unavailable for this segment.")
+                            st.error("No valid routes returned from routing server.")
                             
                     else:
                         st.error(f"Routing Rejected. Server returned status code: {res.status_code}. Response: {res.text}")
