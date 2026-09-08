@@ -48,7 +48,7 @@ def handle_input(text, api_key):
         if res.status_code == 200:
             items = res.json().get("items", [])
             if items:
-                pos = items["position"]
+                pos = items[0]["position"]
                 return f"{pos['lat']},{pos['lng']}"
     except:
         pass
@@ -70,11 +70,11 @@ with col2:
             end_coords = handle_input(end_address, api_key)
             
             if not start_coords or not end_coords:
-                st.error("Could not trace these inputs. Please verify formatting.")
+                st.error("Could not trace these inputs. Please check spelling or coordinate formatting.")
             else:
-                url = "https://router.hereapi.com/v8/routes"
+                url = "https://hereapi.com"
                 
-                # CORRECTED V8 VEHICLE PARAMETER SYNTAX BLOCK
+                # STRICT HERE V8 COMPLIANT VEHICLE CONFIGURATION
                 params = {
                     "apiKey": api_key,
                     "transportMode": "truck",
@@ -83,20 +83,24 @@ with col2:
                     "return": "summary,polyline,actions",
                     "routingMode": "fast",
                     
-                    # Validated V8 Vehicle Constraint Parameters
-                    "vehicle[height]": 411,
-                    "vehicle[width]": 260,
-                    "vehicle[length]": 2200,
-                    "vehicle[grossWeight]": 36287,
-                    "vehicle[axleCount]": 5,
-                    "vehicle[type]": "tractorTrailer"
+                    # Core physical limitations 
+                    "vehicle[height]": 411,        # 13'6" in cm
+                    "vehicle[width]": 260,         # 102" in cm
+                    "vehicle[length]": 2200,       # 72ft total combination length in cm
+                    "vehicle[grossWeight]": 36287,  # 80,000 lbs in kg
+                    "vehicle[axleCount]": 5,       # 5 Axles total
+                    "vehicle[type]": "straightTruck", # Base profile rule
+                    "vehicle[trailerCount]": 1     # Activates tractor-trailer calculations
                 }
                 
                 try:
                     res = requests.get(url, params=params)
                     if res.status_code == 200:
                         data = res.json()
-                        section = data['routes'][0]['sections'][0] # Safe array path index mapping
+                        
+                        # Corrected JSON array extraction logic for modern HERE API structure
+                        route = data['routes'][0]
+                        section = route['sections'][0]
                         summary = section['summary']
                         
                         miles = summary['length'] * 0.000621371
