@@ -34,27 +34,28 @@ st.sidebar.info("""
 """)
 
 def free_geocode(text):
-    """Bypasses HERE's restricted geocoder using an open-source text lookup engine."""
     if "," in text:
         try:
-            # Check if user typed raw numbers directly
             parts = text.split(",")
-            lat, lng = float(parts[0].strip()), float(parts[1].strip())
-            return f"{lat},{lng}"
+            if len(parts) == 2:
+                lat = float(parts[0].strip())
+                lng = float(parts[1].strip())
+                return f"{lat},{lng}"
         except:
             pass
             
-    # Open-source text search query string
     url = "https://openstreetmap.org"
-    headers = {"User-Agent": "WixTruckRoutingEngineCustomApp/1.0"}
+    headers = {"User-Agent": "WixTruckRoutingEngineCustomApp_FleetRouter/2.0"}
     params = {"q": text, "format": "json", "limit": 1}
     
     try:
         res = requests.get(url, headers=headers, params=params, timeout=10)
         if res.status_code == 200:
             data = res.json()
-            if data:
-                return f"{data[0]['lat']},{data[0]['lon']}"
+            if data and len(data) > 0:
+                # Target the first matching index item directly out of the search response
+                location_data = data[0]
+                return f"{location_data['lat']},{location_data['lon']}"
     except:
         pass
     return None
@@ -71,12 +72,11 @@ with col1:
 with col2:
     if calculate:
         with st.spinner("Processing text addresses and verifying clearance routes..."):
-            # Use the free open-source lookup engine to break down the words into coordinates
             start_coords = free_geocode(start_address)
             end_coords = free_geocode(end_address)
             
             if not start_coords or not end_coords:
-                st.error("Could not find those locations. Please verify your spelling or type it like: City, State (e.g., Newport, TN).")
+                st.error("Could not find those locations. Please verify your spelling or try typing City, State (e.g., Newport, TN).")
             else:
                 url = "https://hereapi.com"
                 
@@ -103,7 +103,6 @@ with col2:
                     if res.status_code == 200:
                         data = res.json()
                         
-                        # Corrected modern JSON indexing tree for HERE v8 responses
                         if 'routes' in data and len(data['routes']) > 0:
                             route_data = data['routes'][0]
                             if 'sections' in route_data and len(route_data['sections']) > 0:
@@ -131,7 +130,7 @@ with col2:
                                     })
                                     
                                     st.subheader("Operational Route Visualizer")
-                                    st.map(map_data, zoom=10)
+                                    st.map(map_data, zoom=9)
                                 except Exception as map_err:
                                     st.warning("Calculated successfully, but map pins could not be parsed.")
                                 
