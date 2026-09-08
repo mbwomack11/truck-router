@@ -27,6 +27,19 @@ st.sidebar.info("""
 - Hazmat: None (General Dry Freight)
 """)
 
+def get_suggestions(query, api_key):
+    if not query or len(query) < 3 or not api_key:
+        return []
+    url = "https://hereapi.com"
+    params = {"apiKey": api_key, "q": query, "limit": 5}
+    try:
+        res = requests.get(url, params=params)
+        if res.status_code == 200:
+            return [item["title"] for item in res.json().get("items", [])]
+    except:
+        pass
+    return []
+
 def geocode_address(address, api_key):
     url = "https://hereapi.com"
     params = {"apiKey": api_key, "q": address}
@@ -35,7 +48,7 @@ def geocode_address(address, api_key):
         if res.status_code == 200:
             items = res.json().get("items", [])
             if items:
-                pos = items["position"]
+                pos = items[0]["position"]
                 return f"{pos['lat']},{pos['lng']}"
     except:
         pass
@@ -45,9 +58,15 @@ col1, col2 = st.columns(2)
 
 with col1:
     st.subheader("Route Locations")
-    st.caption("Type in full street addresses, cities, or ZIP codes")
-    start_address = st.text_input("Origin Address", value="Chicago, IL")
-    end_address = st.text_input("Destination Address", value="New York, NY")
+    
+    start_input = st.text_input("Origin Address (Type city/zip then press Enter to suggest)", value="Chicago, IL")
+    start_options = get_suggestions(start_input, api_key) if api_key else []
+    start_address = st.selectbox("Confirm Selected Origin:", [start_input] + start_options if start_options else [start_input])
+    
+    end_input = st.text_input("Destination Address (Type city/zip then press Enter to suggest)", value="New York, NY")
+    end_options = get_suggestions(end_input, api_key) if api_key else []
+    end_address = st.selectbox("Confirm Selected Destination:", [end_input] + end_options if end_options else [end_input])
+    
     calculate = st.button("Generate Truck-Safe Route")
 
 with col2:
@@ -82,7 +101,7 @@ with col2:
                         res = requests.get(url, params=params)
                         if res.status_code == 200:
                             data = res.json()
-                            section = data['routes']['sections']
+                            section = data['routes']['sections'][0]
                             summary = section['summary']
                             
                             miles = summary['length'] * 0.000621371
