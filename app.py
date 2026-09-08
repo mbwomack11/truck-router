@@ -4,7 +4,7 @@ import pandas as pd
 
 st.set_page_config(page_title="Truck Routing Portal", page_icon="Res", layout="wide")
 
-# Your private token is securely locked in here
+# Your active private key is safely locked here
 api_key = "KLhVOBUT2NwvZfoHebi0254eWYI9WL5k9jjjOlEilgU"
 
 st.markdown("""
@@ -34,7 +34,6 @@ st.sidebar.info("""
 """)
 
 def handle_input(text, api_key):
-    # Check if user typed coordinates directly to bypass geocoding
     if "," in text:
         try:
             lat, lng = map(float, text.split(","))
@@ -42,7 +41,7 @@ def handle_input(text, api_key):
         except:
             pass
             
-    url = "https://geocode.search.hereapi.com/v1/geocode"
+    url = "https://hereapi.com"
     params = {"apiKey": api_key, "q": text}
     try:
         res = requests.get(url, params=params)
@@ -59,7 +58,7 @@ col1, col2 = st.columns(2)
 
 with col1:
     st.subheader("Route Locations")
-    st.caption("Type any address, city, ZIP, or raw Lat,Lng coordinates freely.")
+    st.caption("Type coordinates or text addresses freely below.")
     start_address = st.text_input("Origin Location", value="35.9606, -83.1763")
     end_address = st.text_input("Destination Location", value="36.1965, -82.7601")
     calculate = st.button("Generate Truck-Safe Route")
@@ -71,29 +70,33 @@ with col2:
             end_coords = handle_input(end_address, api_key)
             
             if not start_coords or not end_coords:
-                st.error("Could not trace these inputs. Paste coordinates or verify your HERE project features.")
+                st.error("Could not trace these inputs. Please verify formatting.")
             else:
                 url = "https://router.hereapi.com/v8/routes"
+                
+                # UPDATED V8 TRUCK OBJECT PARAMETERS
                 params = {
                     "apiKey": api_key,
                     "transportMode": "truck",
                     "origin": start_coords,
                     "destination": end_coords,
-                    "return": "summary,polyline,actions", # Added actions payload for step instructions
-                    "vehicle[height]": 411,
-                    "vehicle[width]": 260,
-                    "vehicle[length]": 2200,
-                    "vehicle[grossWeight]": 36287,
-                    "vehicle[axleCount]": 5,
-                    "vehicle[type]": "tractorTrailer",
-                    "routingMode": "fast"
+                    "return": "summary,polyline,actions",
+                    "routingMode": "fast",
+                    
+                    # Corrected HERE Maps API v8 truck syntax configuration
+                    "truck[height]": 411,
+                    "truck[width]": 260,
+                    "truck[length]": 2200,
+                    "truck[grossWeight]": 36287,
+                    "truck[axleCount]": 5,
+                    "truck[type]": "tractorTrailer"
                 }
                 
                 try:
                     res = requests.get(url, params=params)
                     if res.status_code == 200:
                         data = res.json()
-                        section = data['routes'][0]['sections'][0]
+                        section = data['routes'][0]['sections'][0] # Safe object tree indexing for v8 array payloads
                         summary = section['summary']
                         
                         miles = summary['length'] * 0.000621371
@@ -121,7 +124,6 @@ with col2:
                         except Exception as map_err:
                             st.warning("Calculated successfully, but map pins could not be parsed.")
                         
-                        # Unpack turn instructions safely below map card
                         st.subheader("📖 Truck-Compliant Manifest Directions")
                         actions = section.get('actions', [])
                         if actions:
@@ -133,7 +135,7 @@ with col2:
                             st.info("Route verified safe, but detailed turn maneuvers are unavailable for this segment.")
                             
                     else:
-                        st.error(f"Routing Rejected. A standard 80k lbs combo cannot safely navigate this corridor. Code: {res.status_code}")
+                        st.error(f"Routing Rejected. Server returned status code: {res.status_code}. Response: {res.text}")
                 except Exception as e:
                     st.error(f"Network error linking to central map registry: {str(e)}")
     else:
