@@ -13,6 +13,9 @@ st.markdown("""
     div.stButton > button:first-child {
         background-color: #1e3a8a; color: white; font-weight: bold; border-radius: 6px; width: 100%; height: 45px;
     }
+    .direction-step {
+        padding: 10px; border-bottom: 1px solid #e2e8f0; font-size: 14px; color: #334155;
+    }
     </style>
 """, unsafe_allow_html=True)
 
@@ -30,9 +33,17 @@ st.sidebar.info("""
 - Hazmat: None (General Dry Freight)
 """)
 
-def geocode_address(address, api_key):
-    url = "https://hereapi.com"
-    params = {"apiKey": api_key, "q": address}
+def handle_input(text, api_key):
+    # Check if user typed coordinates directly to bypass geocoding
+    if "," in text:
+        try:
+            lat, lng = map(float, text.split(","))
+            return f"{lat},{lng}"
+        except:
+            pass
+            
+    url = "https://geocode.search.hereapi.com/v1/geocode"
+    params = {"apiKey": api_key, "q": text}
     try:
         res = requests.get(url, params=params)
         if res.status_code == 200:
@@ -48,27 +59,27 @@ col1, col2 = st.columns(2)
 
 with col1:
     st.subheader("Route Locations")
-    st.caption("Type any address, city, or ZIP code freely.")
-    start_address = st.text_input("Origin Address", value="Newport, TN")
-    end_address = st.text_input("Destination Address", value="Afton, TN")
+    st.caption("Type any address, city, ZIP, or raw Lat,Lng coordinates freely.")
+    start_address = st.text_input("Origin Location", value="35.9606, -83.1763")
+    end_address = st.text_input("Destination Location", value="36.1965, -82.7601")
     calculate = st.button("Generate Truck-Safe Route")
 
 with col2:
     if calculate:
-        with st.spinner("Processing locations and checking bridge clearances..."):
-            start_coords = geocode_address(start_address, api_key)
-            end_coords = geocode_address(end_address, api_key)
+        with st.spinner("Processing corridor dimensions and structural weight profiles..."):
+            start_coords = handle_input(start_address, api_key)
+            end_coords = handle_input(end_address, api_key)
             
             if not start_coords or not end_coords:
-                st.error("Could not trace these addresses. Please double-check your spelling.")
+                st.error("Could not trace these inputs. Paste coordinates or verify your HERE project features.")
             else:
-                url = "https://hereapi.com"
+                url = "https://router.hereapi.com/v8/routes"
                 params = {
                     "apiKey": api_key,
                     "transportMode": "truck",
                     "origin": start_coords,
                     "destination": end_coords,
-                    "return": "summary,polyline",
+                    "return": "summary,polyline,actions", # Added actions payload for step instructions
                     "vehicle[height]": 411,
                     "vehicle[width]": 260,
                     "vehicle[length]": 2200,
@@ -82,7 +93,7 @@ with col2:
                     res = requests.get(url, params=params)
                     if res.status_code == 200:
                         data = res.json()
-                        section = data['routes']['sections'][0]
+                        section = data['routes'][0]['sections'][0]
                         summary = section['summary']
                         
                         miles = summary['length'] * 0.000621371
@@ -106,9 +117,20 @@ with col2:
                             })
                             
                             st.subheader("Operational Route Visualizer")
-                            st.map(map_data, zoom=9)
+                            st.map(map_data, zoom=10)
                         except Exception as map_err:
                             st.warning("Calculated successfully, but map pins could not be parsed.")
+                        
+                        # Unpack turn instructions safely below map card
+                        st.subheader("📖 Truck-Compliant Manifest Directions")
+                        actions = section.get('actions', [])
+                        if actions:
+                            for index, step in enumerate(actions):
+                                instruction = step.get('instruction', '')
+                                if instruction:
+                                    st.markdown(f"<div class='direction-step'>{index + 1}. {instruction}</div>", unsafe_allow_html=True)
+                        else:
+                            st.info("Route verified safe, but detailed turn maneuvers are unavailable for this segment.")
                             
                     else:
                         st.error(f"Routing Rejected. A standard 80k lbs combo cannot safely navigate this corridor. Code: {res.status_code}")
