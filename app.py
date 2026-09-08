@@ -44,18 +44,15 @@ def free_geocode(text):
         except:
             pass
             
-    url = "https://openstreetmap.org"
-    headers = {"User-Agent": "WixTruckRoutingEngineCustomApp_FleetRouter/2.0"}
-    params = {"q": text, "format": "json", "limit": 1}
+    # Premium unblocked geocode link optimized for plain text entries
+    url = f"https://geocode.xyz{requests.utils.quote(text)}?json=1"
     
     try:
-        res = requests.get(url, headers=headers, params=params, timeout=10)
+        res = requests.get(url, timeout=10)
         if res.status_code == 200:
             data = res.json()
-            if data and len(data) > 0:
-                # Target the first matching index item directly out of the search response
-                location_data = data[0]
-                return f"{location_data['lat']},{location_data['lon']}"
+            if 'latt' in data and 'longt' in data:
+                return f"{data['latt']},{data['longt']}"
     except:
         pass
     return None
